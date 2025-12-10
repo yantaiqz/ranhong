@@ -7,7 +7,7 @@ from datetime import datetime
 import os
 
 # -------------------------------------------------------------
-# --- 1. 从外部Excel文件读取数据（核心修改） ---
+# --- 1. 从外部Excel文件读取数据 ---
 # -------------------------------------------------------------
 
 def load_data_from_file(uploaded_file=None):
@@ -31,7 +31,6 @@ def load_data_from_file(uploaded_file=None):
             return None
         
         # 数据格式适配（统一列名，确保后续代码兼容性）
-        # 定义列名映射：将原始文件列名映射为代码所需列名
         column_mapping = {
             '企业名称': '公司名称',
             '市值(亿)': '市值 (亿元)',
@@ -75,6 +74,10 @@ def load_data_from_file(uploaded_file=None):
         # 过滤无效数据（市值或公司名称为空的行）
         df = df[(df['公司名称'] != '') & (df['市值 (亿元)'] > 0)]
         
+        # 预计算股东持股总额（用于气泡大小）
+        shareholder_total_value = df[df['国资股东名称 (单列)'] != ''].groupby('国资股东名称 (单列)')['单一持股价值 (亿元)'].sum().to_dict()
+        df['股东持股总额'] = df['国资股东名称 (单列)'].map(shareholder_total_value).fillna(0)
+        
         st.info(f"📊 数据加载完成：共 {len(df)} 条记录，{df['公司名称'].nunique()} 家企业，{df['国资股东名称 (单列)'].nunique()} 家国资股东")
         
         return df
@@ -85,11 +88,11 @@ def load_data_from_file(uploaded_file=None):
         return None
 
 # -------------------------------------------------------------
-# --- 2. 核心函数：构建网络图 ---
+# --- 2. 核心函数：构建网络图（精准控制气泡大小） ---
 # -------------------------------------------------------------
 
 @st.cache_resource
-def create_graph(data_frame, max_mc, max_value):
+def create_graph(data_frame, max_mc, max_shareholder_value):
     # 定义核心领域颜色映射（鲜明差异化颜色）
     field_colors = {
         '新能源产业': '#1E88E5',        # 亮蓝色
@@ -110,11 +113,10 @@ def create_graph(data_frame, max_mc, max_value):
         bgcolor='#1E293B', 
         font_color='white', 
         directed=True, 
-        notebook=True,
-        #font_size=14
+        notebook=True
     )
     
-    # 优化物理布局（避免名称重叠）
+    # 优化物理布局
     net.set_options("""
     var options = {
       "physics": {
@@ -167,14 +169,19 @@ def create_graph(data_frame, max_mc, max_value):
     all_companies = data_frame['公司名称'].unique()
     all_shareholders = data_frame[data_frame['国资股东名称 (单列)'] != '']['国资股东名称 (单列)'].unique()
     
-    # 1. 添加企业节点（按核心领域着色，显示完整名称）
+    # 1. 添加企业节点（气泡大小=市值，按核心领域着色）
     for company in all_companies:
         company_data = data_frame[data_frame['公司名称'] == company].iloc[0]
-        market_cap = company_data['市值 (亿元)']
+        market_cap = company_data['市值 (亿元)']  # 企业气泡大小=市值
         core_field = company_data['核心领域'] if company_data['核心领域'] != '' else '其他'
         
-        # 节点大小：按市值比例，确保名称显示空间
-        size = 25 + (market_cap / max_mc) * 60
+        # 计算企业节点大小（按市值比例，基础尺寸20-100，确保可视化效果）
+        # 避免除以0，最小尺寸20，最大100
+        if max_mc > 0:
+            size = 20 + (market_cap / max_mc) * 80  # 市值越大，气泡越大
+        else:
+            size = 30
+        
         node_color = field_colors.get(core_field, field_colors['其他'])
         
         G.add_node(
@@ -190,7 +197,7 @@ def create_graph(data_frame, max_mc, max_value):
                 'border': '#FFFFFF',
                 'highlight': {'background': node_color, 'border': '#FFFF00'}
             },
-            size=size,
+            size=size,  # 气泡大小=市值
             label=company,
             font={
                 'size': 14,
@@ -202,30 +209,39 @@ def create_graph(data_frame, max_mc, max_value):
             margin=15
         )
 
-    # 2. 添加国资股东节点（统一红色，显示完整名称）
+    # 2. 添加国资股东节点（气泡大小=持股总额，统一红色）
     for shareholder in all_shareholders:
+        # 股东气泡大小=该股东的持股价值总额
         total_value = data_frame[data_frame['国资股东名称 (单列)'] == shareholder]['单一持股价值 (亿元)'].sum()
-        size = 20 + (total_value / max_value) * 50
+        
+        # 计算股东节点大小（按持股总额比例，基础尺寸20-100）
+        if max_shareholder_value > 0:
+            size = 20 + (total_value / max_shareholder_value) * 80  # 持股总额越大，气泡越大
+        else:
+            size = 30
         
         # 长名称自动换行处理
         display_name = shareholder
         if len(shareholder) > 12:
             display_name = shareholder[:8] + '\n' + shareholder[8:]
         
+        # 统一红色系，确保所有股东气泡都是红色
+        red_color = '#D32F2F'  # 主红色
+        
         G.add_node(
             shareholder,
             title=f"""<div style='font-size:14px;line-height:1.5'>
                     <strong>股东名称：</strong>{shareholder}<br>
                     <strong>股东类型：</strong>国资股东<br>
-                    <strong>总持股价值：</strong>{total_value:.1f} 亿元
+                    <strong>持股总额：</strong>{total_value:.1f} 亿元
                     </div>""",
             group='国资股东',
             color={
-                'background': '#D32F2F',
+                'background': red_color,  # 统一红色
                 'border': '#FFFFFF',
                 'highlight': {'background': '#FF5252', 'border': '#FFFFFF'}
             },
-            size=size,
+            size=size,  # 气泡大小=持股价值总额
             label=display_name,
             font={
                 'size': 12,
@@ -237,7 +253,7 @@ def create_graph(data_frame, max_mc, max_value):
             margin=15
         )
         
-    # 3. 添加持股关系边（显示持股价值）
+    # 3. 添加持股关系边
     for index, row in data_frame.iterrows():
         company = row['公司名称']
         shareholder = row['国资股东名称 (单列)']
@@ -245,7 +261,8 @@ def create_graph(data_frame, max_mc, max_value):
         ratio = row['单一持股比']
         
         if shareholder != '' and value > 0:
-            weight = 2 + (value / max_value) * 8
+            # 边的粗细按持股价值比例
+            weight = 1 + (value / max_shareholder_value) * 9 if max_shareholder_value > 0 else 2
             G.add_edge(
                 shareholder, 
                 company, 
@@ -292,12 +309,12 @@ def export_data_to_excel(df):
         field_summary = field_summary.reset_index()
         field_summary.to_excel(writer, sheet_name='核心领域汇总', index=False)
         
-        # 3. 按股东汇总
+        # 3. 按股东汇总（显示持股总额）
         shareholder_summary = df[df['国资股东名称 (单列)'] != ''].groupby('国资股东名称 (单列)').agg({
             '公司名称': 'nunique',
             '单一持股价值 (亿元)': 'sum'
         }).round(2)
-        shareholder_summary.columns = ['投资企业数', '总持股价值(亿元)']
+        shareholder_summary.columns = ['投资企业数', '持股总额(亿元)']
         shareholder_summary = shareholder_summary.reset_index()
         shareholder_summary.to_excel(writer, sheet_name='股东投资汇总', index=False)
     
@@ -323,7 +340,12 @@ div[data-testid="stMetric"] {background-color: #27374D; border-radius: 8px; padd
 """, unsafe_allow_html=True)
 
 # 页面标题与文件上传区
-st.title("📈 国资持股企业渗透拓扑图（文件版）")
+st.title("📈 国资持股企业渗透拓扑图（精准气泡大小）")
+st.markdown("### 🎯 气泡大小规则：")
+st.markdown("""
+- **企业气泡**：大小 = 企业市值（越大代表市值越高），颜色 = 核心领域
+- **股东气泡**：大小 = 持股价值总额（越大代表持股总额越高），颜色 = 统一红色
+""")
 st.markdown("---")
 
 # 文件上传组件（支持用户上传自定义Excel文件）
@@ -335,9 +357,11 @@ with col_upload:
 df = load_data_from_file(uploaded_file)
 
 if df is not None and len(df) > 0:
-    # 计算关键指标
-    MAX_MC = df['市值 (亿元)'].max() if df['市值 (亿元)'].max() > 0 else 1
-    MAX_VALUE = df['单一持股价值 (亿元)'].max() if df['单一持股价值 (亿元)'].max() > 0 else 1
+    # 计算关键指标（用于气泡大小计算）
+    MAX_MC = df['市值 (亿元)'].max() if df['市值 (亿元)'].max() > 0 else 1  # 企业最大市值
+    # 计算股东最大持股总额
+    shareholder_totals = df[df['国资股东名称 (单列)'] != ''].groupby('国资股东名称 (单列)')['单一持股价值 (亿元)'].sum()
+    MAX_SHAREHOLDER_VALUE = shareholder_totals.max() if len(shareholder_totals) > 0 else 1
     
     # 侧边栏筛选
     with st.sidebar:
@@ -366,10 +390,10 @@ if df is not None and len(df) > 0:
         # 显示说明
         st.markdown("---")
         st.markdown("""
-        ### 📝 显示说明
-        - **企业节点**：彩色矩形（按领域着色），显示完整名称
-        - **股东节点**：🔴 红色椭圆，统一标识国资股东
-        - **连线**：🟡 黄色线条，粗细代表持股价值
+        ### 📝 气泡说明
+        - **企业节点**：彩色矩形，大小=市值，颜色=核心领域
+        - **股东节点**：🔴 红色椭圆，大小=持股总额，统一红色
+        - **连线**：🟡 黄色线条，粗细=单笔持股价值
         - **操作**：拖拽节点调整位置，滚轮缩放视图
         """)
     
@@ -383,7 +407,7 @@ if df is not None and len(df) > 0:
     if len(filtered_df) > 0:
         try:
             st.subheader("💡 拓扑图可视化（企业-股东关系）")
-            html_file = create_graph(filtered_df, MAX_MC, MAX_VALUE)
+            html_file = create_graph(filtered_df, MAX_MC, MAX_SHAREHOLDER_VALUE)
             
             with open(html_file, 'r', encoding='utf-8') as f:
                 html_code = f.read()
@@ -392,6 +416,7 @@ if df is not None and len(df) > 0:
         
         except Exception as e:
             st.error(f"⚠️ 拓扑图生成失败：{str(e)}")
+            st.exception(e)
     
     # 数据统计与导出
     st.markdown("---")
@@ -407,6 +432,15 @@ if df is not None and len(df) > 0:
         st.metric("💎 总市值", f"{df['市值 (亿元)'].sum():,.0f} 亿元")
     with col4:
         st.metric("💰 总持股价值", f"{df['单一持股价值 (亿元)'].sum():,.1f} 亿元")
+    
+    # 显示股东持股总额排名
+    st.markdown("### 📈 国资股东持股总额排名")
+    top_shareholders = df[df['国资股东名称 (单列)'] != ''].groupby('国资股东名称 (单列)')['单一持股价值 (亿元)'].sum().sort_values(ascending=False).head(10)
+    top_shareholders_df = pd.DataFrame({
+        '股东名称': top_shareholders.index,
+        '持股总额(亿元)': top_shareholders.values.round(2)
+    })
+    st.dataframe(top_shareholders_df, use_container_width=True, hide_index=True)
     
     # 导出按钮
     st.markdown("---")
@@ -436,4 +470,13 @@ if df is not None and len(df) > 0:
 
 # 页面底部说明
 st.markdown("---")
-st.caption(f"📅 数据更新时间：{datetime.now().strftime('%Y年%m月%d日')} | 支持格式：国资.xlsx（含企业名称、市值、核心领域、国资股东等列）")
+st.caption(f"📅 数据更新时间：{datetime.now().strftime('%Y年%m月%d日')} | 气泡规则：企业=市值，股东=持股总额（红色）")
+
+# 版本兼容提示
+st.markdown("---")
+with st.expander("🔧 版本兼容说明", expanded=False):
+    st.markdown("""
+    ### pyvis版本兼容提示
+    1. 若仍有报错，建议升级pyvis：
+       ```bash
+       pip install --upgrade pyvis networkx pandas openpyxl streamlit
