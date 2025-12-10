@@ -134,10 +134,10 @@ def create_graph(data_frame):
         cdn_resources='remote'  # 使用CDN加载资源，避免本地依赖
     )
     
-    # --------------------------
-    # 核心修复3：优化options（禁用颜色继承，确保size生效）
-    # --------------------------
-    options = '''
+
+
+    # 核心修复：严格符合JSON规范的options配置
+options = '''
 {
   "physics": {
     "forceAtlas2Based": {
@@ -157,7 +157,7 @@ def create_graph(data_frame):
   },
   "nodes": {
     "color": {
-      "inherit": false  // 禁用颜色继承，强制使用自定义颜色
+      "inherit": false
     },
     "font": {
       "size": 14,
@@ -199,6 +199,8 @@ def create_graph(data_frame):
   }
 }
 '''
+
+
     net.set_options(options)
 
     # --------------------------
