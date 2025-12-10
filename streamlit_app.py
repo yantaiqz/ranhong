@@ -137,7 +137,7 @@ def create_graph(data_frame):
 
 
     # 核心修复：严格符合JSON规范的options配置
-options = '''
+    options = '''
 {
   "physics": {
     "forceAtlas2Based": {
@@ -198,9 +198,7 @@ options = '''
     }
   }
 }
-'''
-
-
+    '''
     net.set_options(options)
 
     # --------------------------
