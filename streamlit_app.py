@@ -88,7 +88,7 @@ def load_data_from_file(uploaded_file=None):
         return None
 
 # -------------------------------------------------------------
-# --- 2. 核心函数：构建网络图（精准控制气泡大小） ---
+# --- 2. 核心函数：构建网络图（修复文字显示问题） ---
 # -------------------------------------------------------------
 
 @st.cache_resource
@@ -110,13 +110,13 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
     net = Network(
         height='800px', 
         width='100%', 
-        bgcolor='#1E293B', 
-        font_color='white', 
+        bgcolor='#000000',  # 纯黑色背景
+        font_color='#FFFFFF',  # 全局字体白色
         directed=True, 
         notebook=True
     )
     
-    # 优化物理布局
+    # 优化物理布局 + 修复文字显示（所有文字改为白色/亮色）
     net.set_options("""
     var options = {
       "physics": {
@@ -139,27 +139,48 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
         "font": {
           "size": 14,
           "face": "Microsoft YaHei",
-          "color": "#FFFFFF",
+          "color": "#FFFFFF",  # 节点文字白色
+          "strokeWidth": 1,    # 文字描边增强可读性
+          "strokeColor": "#000000",  # 黑色描边
           "align": "center"
         },
         "shape": "ellipse",
         "margin": 10,
         "borderWidth": 2,
-        "borderColor": "#FFFFFF"
+        "borderColor": "#FFFFFF"  # 节点边框白色
       },
       "edges": {
         "font": {
           "size": 12,
-          "face": "Microsoft YaHei"
+          "face": "Microsoft YaHei",
+          "color": "#FFFF00",  # 边标签亮黄色
+          "strokeWidth": 0.5,
+          "strokeColor": "#000000"
         },
         "color": {
-          "color": "#FFC107",
+          "color": "#FFC107",  # 边颜色亮黄色
           "highlight": "#FFFF00"
         },
         "width": 2,
         "smooth": {
           "type": "curvedCW",
           "roundness": 0.1
+        }
+      },
+      "labels": {
+        "enabled": true,
+        "font": {
+          "size": 14,
+          "color": "#FFFFFF"  # 标签文字白色
+        }
+      },
+      "interaction": {
+        "tooltipDelay": 100,
+        "tooltipFontSize": 14,
+        "tooltipColor": {
+          "background": "#222222",  # 提示框背景深灰
+          "border": "#FFFFFF",      # 提示框边框白色
+          "color": "#FFFFFF"        # 提示框文字白色
         }
       }
     }
@@ -176,7 +197,6 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
         core_field = company_data['核心领域'] if company_data['核心领域'] != '' else '其他'
         
         # 计算企业节点大小（按市值比例，基础尺寸20-100，确保可视化效果）
-        # 避免除以0，最小尺寸20，最大100
         if max_mc > 0:
             size = 20 + (market_cap / max_mc) * 80  # 市值越大，气泡越大
         else:
@@ -186,7 +206,8 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
         
         G.add_node(
             company,
-            title=f"""<div style='font-size:14px;line-height:1.5'>
+            # 提示框文字白色，背景深灰
+            title=f"""<div style='font-size:14px;line-height:1.5;color:#FFFFFF;background:#222222;padding:8px;border-radius:4px'>
                     <strong>企业名称：</strong>{company}<br>
                     <strong>核心领域：</strong>{core_field}<br>
                     <strong>市值规模：</strong>{market_cap:.0f} 亿元
@@ -194,16 +215,18 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
             group=core_field,
             color={
                 'background': node_color,
-                'border': '#FFFFFF',
+                'border': '#FFFFFF',  # 节点边框白色
                 'highlight': {'background': node_color, 'border': '#FFFF00'}
             },
             size=size,  # 气泡大小=市值
             label=company,
             font={
                 'size': 14,
-                'color': '#FFFFFF',
+                'color': '#FFFFFF',  # 节点标签白色
                 'face': 'Microsoft YaHei',
-                'bold': True
+                'bold': True,
+                'strokeWidth': 1,    # 文字描边
+                'strokeColor': '#000000'  # 黑色描边增强可读性
             },
             shape='box',
             margin=15
@@ -230,7 +253,8 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
         
         G.add_node(
             shareholder,
-            title=f"""<div style='font-size:14px;line-height:1.5'>
+            # 提示框文字白色
+            title=f"""<div style='font-size:14px;line-height:1.5;color:#FFFFFF;background:#222222;padding:8px;border-radius:4px'>
                     <strong>股东名称：</strong>{shareholder}<br>
                     <strong>股东类型：</strong>国资股东<br>
                     <strong>持股总额：</strong>{total_value:.1f} 亿元
@@ -238,16 +262,18 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
             group='国资股东',
             color={
                 'background': red_color,  # 统一红色
-                'border': '#FFFFFF',
+                'border': '#FFFFFF',      # 边框白色
                 'highlight': {'background': '#FF5252', 'border': '#FFFFFF'}
             },
             size=size,  # 气泡大小=持股价值总额
             label=display_name,
             font={
                 'size': 12,
-                'color': '#FFFFFF',
+                'color': '#FFFFFF',  # 股东标签白色
                 'face': 'Microsoft YaHei',
-                'bold': True
+                'bold': True,
+                'strokeWidth': 1,    # 文字描边
+                'strokeColor': '#000000'
             },
             shape='ellipse',
             margin=15
@@ -267,7 +293,8 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
                 shareholder, 
                 company, 
                 value=weight,
-                title=f"""<div style='font-size:13px;line-height:1.5'>
+                # 边提示框文字白色
+                title=f"""<div style='font-size:13px;line-height:1.5;color:#FFFFFF;background:#222222;padding:8px;border-radius:4px'>
                         <strong>持股价值：</strong>{value:.1f} 亿元<br>
                         <strong>持股比例：</strong>{ratio:.2%}
                         </div>""",
@@ -275,7 +302,10 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
                 label=f'{value:.0f}亿' if value >= 1 else f'{value:.1f}亿',
                 font={
                     'size': 10,
-                    'color': '#FFC107'
+                    'color': '#FFFF00',  # 边标签亮黄色
+                    'bold': True,
+                    'strokeWidth': 0.5,
+                    'strokeColor': '#000000'
                 }
             )
     
@@ -322,20 +352,102 @@ def export_data_to_excel(df):
     return output
 
 # -------------------------------------------------------------
-# --- 4. Streamlit UI 布局 ---
+# --- 4. Streamlit UI 布局（优化整体文字显示） ---
 # -------------------------------------------------------------
 
 st.set_page_config(layout="wide", page_title="国资持股企业拓扑图", page_icon="📊")
 
-# 自定义样式
+# 自定义样式（确保Streamlit界面文字在黑色背景下清晰）
 st.markdown("""
 <style>
-.stApp {background-color: #1E293B; color: #F8FAFC;}
-h1,h2,h3,h4 {color: #F8FAFC; font-family: 'Microsoft YaHei';}
-.stButton>button {background-color: #D32F2F; color: white; border-radius: 8px; border: none; padding: 0.5rem 1rem;}
-div[data-testid="stMetric"] {background-color: #27374D; border-radius: 8px; padding: 1rem;}
-.stSidebar {background-color: #27374D; font-family: 'Microsoft YaHei';}
-.stDataFrame {color: #F8FAFC; font-family: 'Microsoft YaHei';}
+/* 整体黑色背景，白色文字 */
+.stApp {
+    background-color: #000000; 
+    color: #FFFFFF;
+}
+/* 标题文字白色加粗 */
+h1, h2, h3, h4, h5, h6 {
+    color: #FFFFFF; 
+    font-family: 'Microsoft YaHei';
+    font-weight: bold;
+}
+/* 按钮样式优化 */
+.stButton>button {
+    background-color: #D32F2F; 
+    color: #FFFFFF; 
+    border-radius: 8px; 
+    border: 1px solid #FFFFFF;
+    padding: 0.5rem 1rem;
+    font-weight: bold;
+}
+.stButton>button:hover {
+    background-color: #FF5252;
+    color: #FFFFFF;
+}
+/* 指标卡片样式 */
+div[data-testid="stMetric"] {
+    background-color: #111111; 
+    color: #FFFFFF;
+    border-radius: 8px; 
+    padding: 1rem;
+    border: 1px solid #333333;
+}
+div[data-testid="stMetric"] label {
+    color: #CCCCCC !important;
+}
+div[data-testid="stMetric"] value {
+    color: #FFFFFF !important;
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+/* 侧边栏样式 */
+.stSidebar {
+    background-color: #111111; 
+    color: #FFFFFF;
+    font-family: 'Microsoft YaHei';
+}
+.stSidebar label, .stSidebar div, .stSidebar span {
+    color: #FFFFFF !important;
+}
+/* 数据表格样式 */
+.stDataFrame {
+    color: #FFFFFF; 
+    background-color: #111111;
+    font-family: 'Microsoft YaHei';
+}
+/* 输入框/选择框样式 */
+.stTextInput>div>div>input, .stSelectbox>div>div>select, .stSlider>div>div>div {
+    color: #FFFFFF;
+    background-color: #222222;
+    border: 1px solid #444444;
+}
+/* 上传组件样式 */
+.stFileUploader label {
+    color: #FFFFFF !important;
+}
+/* 展开栏样式 */
+.stExpander {
+    background-color: #111111;
+    border: 1px solid #333333;
+}
+.stExpander label, .stExpander div {
+    color: #FFFFFF !important;
+}
+/* 错误/成功提示样式 */
+.stAlert {
+    background-color: #111111;
+    border: 1px solid #333333;
+    color: #FFFFFF;
+}
+.stSuccess {
+    border-left: 4px solid #4CAF50;
+}
+.stError {
+    border-left: 4px solid #F44336;
+}
+.stInfo {
+    border-left: 4px solid #2196F3;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -471,3 +583,12 @@ if df is not None and len(df) > 0:
 # 页面底部说明
 st.markdown("---")
 st.caption(f"📅 数据更新时间：{datetime.now().strftime('%Y年%m月%d日')} | 气泡规则：企业=市值，股东=持股总额（红色）")
+
+# 版本兼容提示
+st.markdown("---")
+with st.expander("🔧 版本兼容说明", expanded=False):
+    st.markdown("""
+    ### pyvis版本兼容提示
+    1. 若仍有报错，建议升级pyvis：
+       ```bash
+       pip install --upgrade pyvis networkx pandas openpyxl streamlit
