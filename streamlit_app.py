@@ -471,12 +471,3 @@ if df is not None and len(df) > 0:
 # 页面底部说明
 st.markdown("---")
 st.caption(f"📅 数据更新时间：{datetime.now().strftime('%Y年%m月%d日')} | 气泡规则：企业=市值，股东=持股总额（红色）")
-
-# 版本兼容提示
-st.markdown("---")
-with st.expander("🔧 版本兼容说明", expanded=False):
-    st.markdown("""
-    ### pyvis版本兼容提示
-    1. 若仍有报错，建议升级pyvis：
-       ```bash
-       pip install --upgrade pyvis networkx pandas openpyxl streamlit
