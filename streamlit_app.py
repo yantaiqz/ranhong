@@ -254,7 +254,10 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
     
     # 移除net.from_nx(G)这行！
     # 直接保存图
-    net.save_graph('network_chart.html')
+    temp_html_file = 'network_chart.html'  # 定义变量！！！
+    net.save_graph(temp_html_file)         # 保存HTML文件
+
+
     
     return temp_html_file
 
