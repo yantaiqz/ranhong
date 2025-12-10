@@ -88,7 +88,7 @@ def load_data_from_file(uploaded_file=None):
         return None
 
 # -------------------------------------------------------------
-# --- 2. 核心函数：构建网络图（修复文字显示问题） ---
+# --- 2. 核心函数：构建网络图（修复JSON格式错误） ---
 # -------------------------------------------------------------
 
 @st.cache_resource
@@ -116,75 +116,77 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
         notebook=True
     )
     
-    # 优化物理布局 + 修复文字显示（所有文字改为白色/亮色）
-    net.set_options("""
-    var options = {
-      "physics": {
-        "forceAtlas2Based": {
-          "gravitationalConstant": -300,
-          "centralGravity": 0.05,
-          "springLength": 150,
-          "springConstant": 0.04,
-          "avoidOverlap": 0.8
-        },
-        "minVelocity": 0.5,
-        "solver": "forceAtlas2Based",
-        "timestep": 0.25,
-        "stabilization": {
-          "iterations": 200,
-          "updateInterval": 25
-        }
-      },
-      "nodes": {
-        "font": {
-          "size": 14,
-          "face": "Microsoft YaHei",
-          "color": "#FFFFFF",  # 节点文字白色
-          "strokeWidth": 1,    # 文字描边增强可读性
-          "strokeColor": "#000000",  # 黑色描边
-          "align": "center"
-        },
-        "shape": "ellipse",
-        "margin": 10,
-        "borderWidth": 2,
-        "borderColor": "#FFFFFF"  # 节点边框白色
-      },
-      "edges": {
-        "font": {
-          "size": 12,
-          "face": "Microsoft YaHei",
-          "color": "#FFFF00",  # 边标签亮黄色
-          "strokeWidth": 0.5,
-          "strokeColor": "#000000"
-        },
-        "color": {
-          "color": "#FFC107",  # 边颜色亮黄色
-          "highlight": "#FFFF00"
-        },
-        "width": 2,
-        "smooth": {
-          "type": "curvedCW",
-          "roundness": 0.1
-        }
-      },
-      "labels": {
-        "enabled": true,
-        "font": {
-          "size": 14,
-          "color": "#FFFFFF"  # 标签文字白色
-        }
-      },
-      "interaction": {
-        "tooltipDelay": 100,
-        "tooltipFontSize": 14,
-        "tooltipColor": {
-          "background": "#222222",  # 提示框背景深灰
-          "border": "#FFFFFF",      # 提示框边框白色
-          "color": "#FFFFFF"        # 提示框文字白色
-        }
-      }
+    # 修复JSON格式的options配置（移除注释、统一双引号、无多余逗号）
+    options = '''
+{
+  "physics": {
+    "forceAtlas2Based": {
+      "gravitationalConstant": -300,
+      "centralGravity": 0.05,
+      "springLength": 150,
+      "springConstant": 0.04,
+      "avoidOverlap": 0.8
+    },
+    "minVelocity": 0.5,
+    "solver": "forceAtlas2Based",
+    "timestep": 0.25,
+    "stabilization": {
+      "iterations": 200,
+      "updateInterval": 25
     }
-    """)
+  },
+  "nodes": {
+    "font": {
+      "size": 14,
+      "face": "Microsoft YaHei",
+      "color": "#FFFFFF",
+      "strokeWidth": 1,
+      "strokeColor": "#000000",
+      "align": "center"
+    },
+    "shape": "ellipse",
+    "margin": 10,
+    "borderWidth": 2,
+    "borderColor": "#FFFFFF"
+  },
+  "edges": {
+    "font": {
+      "size": 12,
+      "face": "Microsoft YaHei",
+      "color": "#FFFF00",
+      "strokeWidth": 0.5,
+      "strokeColor": "#000000"
+    },
+    "color": {
+      "color": "#FFC107",
+      "highlight": "#FFFF00"
+    },
+    "width": 2,
+    "smooth": {
+      "type": "curvedCW",
+      "roundness": 0.1
+    }
+  },
+  "labels": {
+    "enabled": true,
+    "font": {
+      "size": 14,
+      "color": "#FFFFFF"
+    }
+  },
+  "interaction": {
+    "tooltipDelay": 100,
+    "tooltipFontSize": 14,
+    "tooltipColor": {
+      "background": "#222222",
+      "border": "#FFFFFF",
+      "color": "#FFFFFF"
+    }
+  }
+}
+'''
+    # 设置修复后的options
+    net.set_options(options)
 
     G = nx.DiGraph()
     all_companies = data_frame['公司名称'].unique()
@@ -204,14 +206,12 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
         
         node_color = field_colors.get(core_field, field_colors['其他'])
         
+        # 提示框内容（避免JSON冲突，使用简单文本）
+        tooltip = f"企业名称：{company}\\n核心领域：{core_field}\\n市值规模：{market_cap:.0f} 亿元"
+        
         G.add_node(
             company,
-            # 提示框文字白色，背景深灰
-            title=f"""<div style='font-size:14px;line-height:1.5;color:#FFFFFF;background:#222222;padding:8px;border-radius:4px'>
-                    <strong>企业名称：</strong>{company}<br>
-                    <strong>核心领域：</strong>{core_field}<br>
-                    <strong>市值规模：</strong>{market_cap:.0f} 亿元
-                    </div>""",
+            title=tooltip,
             group=core_field,
             color={
                 'background': node_color,
@@ -246,19 +246,17 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
         # 长名称自动换行处理
         display_name = shareholder
         if len(shareholder) > 12:
-            display_name = shareholder[:8] + '\n' + shareholder[8:]
+            display_name = shareholder[:8] + '\\n' + shareholder[8:]
         
         # 统一红色系，确保所有股东气泡都是红色
         red_color = '#D32F2F'  # 主红色
         
+        # 股东提示框
+        tooltip = f"股东名称：{shareholder}\\n股东类型：国资股东\\n持股总额：{total_value:.1f} 亿元"
+        
         G.add_node(
             shareholder,
-            # 提示框文字白色
-            title=f"""<div style='font-size:14px;line-height:1.5;color:#FFFFFF;background:#222222;padding:8px;border-radius:4px'>
-                    <strong>股东名称：</strong>{shareholder}<br>
-                    <strong>股东类型：</strong>国资股东<br>
-                    <strong>持股总额：</strong>{total_value:.1f} 亿元
-                    </div>""",
+            title=tooltip,
             group='国资股东',
             color={
                 'background': red_color,  # 统一红色
@@ -289,17 +287,20 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
         if shareholder != '' and value > 0:
             # 边的粗细按持股价值比例
             weight = 1 + (value / max_shareholder_value) * 9 if max_shareholder_value > 0 else 2
+            
+            # 边提示框
+            tooltip = f"持股价值：{value:.1f} 亿元\\n持股比例：{ratio:.2%}"
+            
+            # 边标签
+            label_text = f"{value:.0f}亿" if value >= 1 else f"{value:.1f}亿"
+            
             G.add_edge(
                 shareholder, 
                 company, 
                 value=weight,
-                # 边提示框文字白色
-                title=f"""<div style='font-size:13px;line-height:1.5;color:#FFFFFF;background:#222222;padding:8px;border-radius:4px'>
-                        <strong>持股价值：</strong>{value:.1f} 亿元<br>
-                        <strong>持股比例：</strong>{ratio:.2%}
-                        </div>""",
+                title=tooltip,
                 width=weight,
-                label=f'{value:.0f}亿' if value >= 1 else f'{value:.1f}亿',
+                label=label_text,
                 font={
                     'size': 10,
                     'color': '#FFFF00',  # 边标签亮黄色
