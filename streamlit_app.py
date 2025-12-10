@@ -87,10 +87,10 @@ def load_data_from_file(uploaded_file=None):
         df['股东持股总额'] = df['国资股东名称 (单列)'].map(shareholder_total_value).fillna(0)
         
         st.info(f"📊 数据加载完成：共 {len(df)} 条记录，{df['公司名称'].nunique()} 家企业，{df['国资股东名称 (单列)'].nunique()} 家国资股东")
+
+        st.info(f"📝 核心领域分布：{df['核心领域'].value_counts().to_dict()}")
         
-        # 调试：打印领域分布（确认标准化生效）
-        st.debug(f"核心领域分布：{df['核心领域'].value_counts().to_dict()}")
-        
+ 
         return df
     
     except Exception as e:
