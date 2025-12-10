@@ -111,7 +111,7 @@ def create_graph(data_frame, max_mc, max_value):
         font_color='white', 
         directed=True, 
         notebook=True,
-        font_size=14
+        #font_size=14
     )
     
     # 优化物理布局（避免名称重叠）
