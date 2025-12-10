@@ -101,7 +101,7 @@ def load_data_from_file(uploaded_file=None):
 # -------------------------------------------------------------
 # --- 2. 构建网络图（修复大小+颜色渲染） ---
 # -------------------------------------------------------------
-@st.cache_resource(experimental_allow_widgets=True)
+@st.cache_resource
 def create_graph(data_frame):
     # 领域-颜色映射（与标准化后的名称严格匹配）
     field_colors = {
