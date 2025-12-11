@@ -29,7 +29,7 @@ SHAREHOLDER_COLOR = '#D32F2F'    # 红色背景
 SHAREHOLDER_BORDER = '#FFEB3B'   # 黄色边框
 
 # 定义默认文件路径（新增核心配置）
-default_file_path = os.path.expanduser("~/国资.xlsx")  # ~代表当前用户家目录
+default_file_path = os.path.expanduser("国资.xlsx")  # ~代表当前用户家目录
 
 # ==============================================================================
 # 1. 核心功能函数
