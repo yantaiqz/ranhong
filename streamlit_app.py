@@ -88,7 +88,7 @@ def load_data_from_file(uploaded_file=None):
         return None
 
 # -------------------------------------------------------------
-# --- 2. 核心函数：构建网络图（修复JSON格式错误） ---
+# --- 2. 核心函数：构建网络图（修复节点大小+股东颜色） ---
 # -------------------------------------------------------------
 
 @st.cache_resource
@@ -188,94 +188,85 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
     # 设置修复后的options
     net.set_options(options)
 
-    G = nx.DiGraph()
-    all_companies = data_frame['公司名称'].unique()
-    all_shareholders = data_frame[data_frame['国资股东名称 (单列)'] != '']['国资股东名称 (单列)'].unique()
+    # 清空原有节点/边（避免缓存导致的样式残留）
+    net.nodes.clear()
+    net.edges.clear()
     
-    # 1. 添加企业节点（气泡大小=市值，按核心领域着色）
+    # 1. 处理企业节点（确保大小差异化）
+    all_companies = data_frame['公司名称'].unique()
     for company in all_companies:
         company_data = data_frame[data_frame['公司名称'] == company].iloc[0]
-        market_cap = company_data['市值 (亿元)']  # 企业气泡大小=市值
+        market_cap = company_data['市值 (亿元)']
         core_field = company_data['核心领域'] if company_data['核心领域'] != '' else '其他'
         
-        # 计算企业节点大小（按市值比例，基础尺寸20-100，确保可视化效果）
+        # 优化节点大小计算：扩大差值范围（30-200），确保大小差异明显
         if max_mc > 0:
-            size = 20 + (market_cap / max_mc) * 80  # 市值越大，气泡越大
+            # 对数缩放，避免超大市值节点覆盖其他节点
+            size = 30 + (min(market_cap / max_mc, 1.0) ** 0.5) * 170
         else:
-            size = 30
+            size = 50
+        size = int(size)  # 转为整数，避免Pyvis渲染异常
         
         node_color = field_colors.get(core_field, field_colors['其他'])
         
-        # 提示框内容（避免JSON冲突，使用简单文本）
-        tooltip = f"企业名称：{company}\\n核心领域：{core_field}\\n市值规模：{market_cap:.0f} 亿元"
+        # 提示框内容（简化格式，避免渲染异常）
+        tooltip = f"企业名称：{company}\n核心领域：{core_field}\n市值规模：{market_cap:.0f} 亿元"
         
-        G.add_node(
+        # 直接添加节点到Pyvis（而非先加nx再转换，避免格式丢失）
+        net.add_node(
             company,
             title=tooltip,
             group=core_field,
-            color={
-                'background': node_color,
-                'border': '#FFFFFF',  # 节点边框白色
-                'highlight': {'background': node_color, 'border': '#FFFF00'}
-            },
-            size=size,  # 气泡大小=市值
+            color=node_color,  # 简化颜色配置（直接传背景色，Pyvis兼容更好）
+            borderColor='#FFFFFF',
+            size=size,
             label=company,
+            shape='box',
+            margin=15,
             font={
                 'size': 14,
-                'color': '#FFFFFF',  # 节点标签白色
+                'color': '#FFFFFF',
                 'face': 'Microsoft YaHei',
-                'bold': True,
-                'strokeWidth': 1,    # 文字描边
-                'strokeColor': '#000000'  # 黑色描边增强可读性
-            },
-            shape='box',
-            margin=15
+                'bold': True
+            }
         )
 
-    # 2. 添加国资股东节点（气泡大小=持股总额，统一红色）
+    # 2. 处理国资股东节点（强制红色+大小差异化）
+    all_shareholders = data_frame[data_frame['国资股东名称 (单列)'] != '']['国资股东名称 (单列)'].unique()
     for shareholder in all_shareholders:
-        # 股东气泡大小=该股东的持股价值总额
         total_value = data_frame[data_frame['国资股东名称 (单列)'] == shareholder]['单一持股价值 (亿元)'].sum()
         
-        # 计算股东节点大小（按持股总额比例，基础尺寸20-100）
+        # 优化股东节点大小计算（30-200）
         if max_shareholder_value > 0:
-            size = 20 + (total_value / max_shareholder_value) * 80  # 持股总额越大，气泡越大
+            size = 30 + (min(total_value / max_shareholder_value, 1.0) ** 0.5) * 170
         else:
-            size = 30
+            size = 50
+        size = int(size)
         
-        # 长名称自动换行处理
+        # 长名称换行（改用<br>适配HTML渲染）
         display_name = shareholder
         if len(shareholder) > 12:
-            display_name = shareholder[:8] + '\\n' + shareholder[8:]
+            display_name = shareholder[:8] + '<br>' + shareholder[8:]
         
-        # 统一红色系，确保所有股东气泡都是红色
-        #red_color = '#D32F2F'  # 主红色
-        red_color = '#D32F2F'  # 主红色
+        # 强制红色（#D32F2F 纯红，确保视觉明显）
+        tooltip = f"股东名称：{shareholder}\n股东类型：国资股东\n持股总额：{total_value:.1f} 亿元"
         
-        # 股东提示框
-        tooltip = f"股东名称：{shareholder}\\n股东类型：国资股东\\n持股总额：{total_value:.1f} 亿元"
-        
-        G.add_node(
+        net.add_node(
             shareholder,
             title=tooltip,
             group='国资股东',
-            color={
-                'background': red_color, # 统一红色
-                'border': '#FFFFFF',      # 边框白色
-                'highlight': {'background': '#FF5252', 'border': '#FFFFFF'}
-            },
-            size=size,  # 气泡大小=持股价值总额
+            color='#D32F2F',  # 强制红色背景
+            borderColor='#FFFFFF',
+            size=size,
             label=display_name,
+            shape='ellipse',
+            margin=15,
             font={
                 'size': 12,
-                'color': '#FFFFFF',  # 股东标签白色
+                'color': '#FFFFFF',
                 'face': 'Microsoft YaHei',
-                'bold': True,
-                'strokeWidth': 1,    # 文字描边
-                'strokeColor': '#000000'
-            },
-            shape='ellipse',
-            margin=15
+                'bold': True
+            }
         )
         
     # 3. 添加持股关系边
@@ -286,16 +277,14 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
         ratio = row['单一持股比']
         
         if shareholder != '' and value > 0:
-            # 边的粗细按持股价值比例
+            # 边粗细计算
             weight = 1 + (value / max_shareholder_value) * 9 if max_shareholder_value > 0 else 2
+            weight = int(weight)
             
-            # 边提示框
-            tooltip = f"持股价值：{value:.1f} 亿元\\n持股比例：{ratio:.2%}"
-            
-            # 边标签
+            tooltip = f"持股价值：{value:.1f} 亿元\n持股比例：{ratio:.2%}"
             label_text = f"{value:.0f}亿" if value >= 1 else f"{value:.1f}亿"
             
-            G.add_edge(
+            net.add_edge(
                 shareholder, 
                 company, 
                 value=weight,
@@ -304,15 +293,12 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
                 label=label_text,
                 font={
                     'size': 10,
-                    'color': '#FFFF00',  # 边标签亮黄色
-                    'bold': True,
-                    'strokeWidth': 0.5,
-                    'strokeColor': '#000000'
+                    'color': '#FFFF00',
+                    'bold': True
                 }
             )
     
-    # 转换为Pyvis图并保存
-    net.from_nx(G)
+    # 保存图表
     temp_html_file = 'network_chart.html'
     net.save_graph(temp_html_file)
     
