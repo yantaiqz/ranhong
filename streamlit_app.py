@@ -284,10 +284,10 @@ if df is not None:
             for field in existing_fields:
                 color = FIELD_COLORS.get(field, FIELD_COLORS['其他'])
                 legend_html += f"""
-                <div class="legend-item">
-                    <div class="legend-dot" style="background-color: {color};"></div>
-                    <span style="color: #ddd;">{field}</span>
-                </div>
+<div class="legend-item">
+    <div class="legend-dot" style="background-color: {color};"></div>
+    <span style="color: #ddd;">{field}</span>
+</div>
                 """
             legend_html += '</div>'
             st.markdown(legend_html, unsafe_allow_html=True)
