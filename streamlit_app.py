@@ -191,74 +191,129 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
     G = nx.DiGraph()
     all_companies = data_frame['公司名称'].unique()
     all_shareholders = data_frame[data_frame['国资股东名称 (单列)'] != '']['国资股东名称 (单列)'].unique()
-
-    # 替换create_graph中创建节点/边的逻辑：
-    # 1. 清空networkx相关代码，直接用pyvis的net对象
-    # 企业节点
+    
+    # 1. 添加企业节点（气泡大小=市值，按核心领域着色）
     for company in all_companies:
         company_data = data_frame[data_frame['公司名称'] == company].iloc[0]
-        market_cap = company_data['市值 (亿元)']
+        market_cap = company_data['市值 (亿元)']  # 企业气泡大小=市值
         core_field = company_data['核心领域'] if company_data['核心领域'] != '' else '其他'
-        size = 20 + (market_cap / max_mc) * 80 if max_mc > 0 else 30
+        
+        # 计算企业节点大小（按市值比例，基础尺寸20-100，确保可视化效果）
+        if max_mc > 0:
+            size = 20 + (market_cap / max_mc) * 80  # 市值越大，气泡越大
+        else:
+            size = 30
+        
         node_color = field_colors.get(core_field, field_colors['其他'])
-        # node_color = FIELD_COLOR_MAP.get(core_field, FIELD_COLOR_MAP['其他'])
         
-        # 直接用pyvis添加节点（关键！）
-        net.add_node(
+        # 提示框内容（避免JSON冲突，使用简单文本）
+        tooltip = f"企业名称：{company}\\n核心领域：{core_field}\\n市值规模：{market_cap:.0f} 亿元"
+        
+        G.add_node(
             company,
-            title=f"企业名称：{company}\\n核心领域：{core_field}\\n市值：{market_cap:.0f}亿",
-            color=node_color,  # 简化color格式，直接传颜色值
-            size=size,
+            title=tooltip,
+            group=core_field,
+            color={
+                'background': node_color,
+                'border': '#FFFFFF',  # 节点边框白色
+                'highlight': {'background': node_color, 'border': '#FFFF00'}
+            },
+            size=size,  # 气泡大小=市值
             label=company,
-            font={'size':14, 'color':'#FFFFFF', 'face':'Microsoft YaHei'},
-            shape='box'
+            font={
+                'size': 14,
+                'color': '#FFFFFF',  # 节点标签白色
+                'face': 'Microsoft YaHei',
+                'bold': True,
+                'strokeWidth': 1,    # 文字描边
+                'strokeColor': '#000000'  # 黑色描边增强可读性
+            },
+            shape='box',
+            margin=15
         )
-    
-    # 股东节点（确保红色）
+
+    # 2. 添加国资股东节点（气泡大小=持股总额，统一红色）
     for shareholder in all_shareholders:
-        unique_name = f"股东_{shareholder}"
+        # 股东气泡大小=该股东的持股价值总额
         total_value = data_frame[data_frame['国资股东名称 (单列)'] == shareholder]['单一持股价值 (亿元)'].sum()
-        size = 20 + (total_value / max_shareholder_value) * 80 if max_shareholder_value > 0 else 30
         
-        # 直接用pyvis添加股东节点（强制红色）
-        net.add_node(
-            unique_name,
-            title=f"股东名称：{shareholder}\\n持股总额：{total_value:.1f}亿",
-            color='#D32F2F',  # 直接指定红色，无嵌套字典
-            borderColor='#FFFFFF',
-            size=size,
-            label=unique_name.replace('股东_', ''),  # 显示时去掉前缀
-            font={'size':12, 'color':'#FFFFFF', 'face':'Microsoft YaHei'},
-            shape='ellipse'
+        # 计算股东节点大小（按持股总额比例，基础尺寸20-100）
+        if max_shareholder_value > 0:
+            size = 20 + (total_value / max_shareholder_value) * 80  # 持股总额越大，气泡越大
+        else:
+            size = 30
+        
+        # 长名称自动换行处理
+        display_name = shareholder
+        if len(shareholder) > 12:
+            display_name = shareholder[:8] + '\\n' + shareholder[8:]
+        
+        # 统一红色系，确保所有股东气泡都是红色
+        red_color = '#D32F2F'  # 主红色
+        
+        # 股东提示框
+        tooltip = f"股东名称：{shareholder}\\n股东类型：国资股东\\n持股总额：{total_value:.1f} 亿元"
+        
+        G.add_node(
+            shareholder,
+            title=tooltip,
+            group='国资股东',
+            color={
+                'background': red_color,  # 统一红色
+                'border': '#FFFFFF',      # 边框白色
+                'highlight': {'background': '#FF5252', 'border': '#FFFFFF'}
+            },
+            size=size,  # 气泡大小=持股价值总额
+            label=display_name,
+            font={
+                'size': 12,
+                'color': '#FFFFFF',  # 股东标签白色
+                'face': 'Microsoft YaHei',
+                'bold': True,
+                'strokeWidth': 1,    # 文字描边
+                'strokeColor': '#000000'
+            },
+            shape='ellipse',
+            margin=15
         )
-    
-    # 边的创建（直接用pyvis）
+        
+    # 3. 添加持股关系边
     for index, row in data_frame.iterrows():
         company = row['公司名称']
         shareholder = row['国资股东名称 (单列)']
-        if shareholder == '':
-            continue
-        unique_shareholder = f"股东_{shareholder}"
         value = row['单一持股价值 (亿元)']
         ratio = row['单一持股比']
-        weight = 1 + (value / max_shareholder_value) * 9 if max_shareholder_value > 0 else 2
         
-        net.add_edge(
-            unique_shareholder,
-            company,
-            title=f"持股价值：{value:.1f}亿\\n持股比例：{ratio:.2%}",
-            width=weight,
-            color='#FFC107',
-            label=f"{value:.0f}亿" if value >=1 else f"{value:.1f}亿",
-            font={'size':10, 'color':'#FFFF00'}
-        )
+        if shareholder != '' and value > 0:
+            # 边的粗细按持股价值比例
+            weight = 1 + (value / max_shareholder_value) * 9 if max_shareholder_value > 0 else 2
+            
+            # 边提示框
+            tooltip = f"持股价值：{value:.1f} 亿元\\n持股比例：{ratio:.2%}"
+            
+            # 边标签
+            label_text = f"{value:.0f}亿" if value >= 1 else f"{value:.1f}亿"
+            
+            G.add_edge(
+                shareholder, 
+                company, 
+                value=weight,
+                title=tooltip,
+                width=weight,
+                label=label_text,
+                font={
+                    'size': 10,
+                    'color': '#FFFF00',  # 边标签亮黄色
+                    'bold': True,
+                    'strokeWidth': 0.5,
+                    'strokeColor': '#000000'
+                }
+            )
     
-    # 移除net.from_nx(G)这行！
-    # 直接保存图
-    temp_html_file = 'network_chart.html'  # 定义变量！！！
-    net.save_graph(temp_html_file)         # 保存HTML文件
-
-
+    # 转换为Pyvis图并保存
+    net.from_nx(G)
+    temp_html_file = 'network_chart.html'
+    net.save_graph(temp_html_file)
     
     return temp_html_file
 
@@ -473,7 +528,7 @@ if df is not None and len(df) > 0:
             st.components.v1.html(html_code, height=850, scrolling=True, width='100%')
         
         except Exception as e:
-            st.error(f"⚠️ 拓扑图生成失败：{str(e)}")
+            st.error(f"⚠ 拓扑图生成失败：{str(e)}")
             st.exception(e)
     
     # 数据统计与导出
@@ -485,7 +540,7 @@ if df is not None and len(df) > 0:
     with col1:
         st.metric("🏢 企业总数", f"{df['公司名称'].nunique()} 家")
     with col2:
-        st.metric("🏛️ 国资股东数", f"{df[df['国资股东名称 (单列)'] != '']['国资股东名称 (单列)'].nunique()} 家")
+        st.metric("🏛 国资股东数", f"{df[df['国资股东名称 (单列)'] != '']['国资股东名称 (单列)'].nunique()} 家")
     with col3:
         st.metric("💎 总市值", f"{df['市值 (亿元)'].sum():,.0f} 亿元")
     with col4:
