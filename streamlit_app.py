@@ -200,7 +200,8 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
         
         # 计算企业节点大小（按市值比例，基础尺寸20-100，确保可视化效果）
         if max_mc > 0:
-            size = 20 + (market_cap / max_mc) * 80  # 市值越大，气泡越大
+            #size = 20 + (market_cap / max_mc) * 80  # 市值越大，气泡越大
+            size = 20 + (market_cap / max_mc) * 800  # 市值越大，气泡越大
         else:
             size = 30
         
@@ -239,7 +240,8 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
         
         # 计算股东节点大小（按持股总额比例，基础尺寸20-100）
         if max_shareholder_value > 0:
-            size = 20 + (total_value / max_shareholder_value) * 80  # 持股总额越大，气泡越大
+            #size = 20 + (total_value / max_shareholder_value) * 80  # 持股总额越大，气泡越大
+            size = 20 + (total_value / max_shareholder_value) * 800  # 持股总额越大，气泡越大
         else:
             size = 30
         
@@ -249,6 +251,7 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
             display_name = shareholder[:8] + '\\n' + shareholder[8:]
         
         # 统一红色系，确保所有股东气泡都是红色
+        #red_color = '#D32F2F'  # 主红色
         red_color = '#D32F2F'  # 主红色
         
         # 股东提示框
@@ -259,7 +262,7 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
             title=tooltip,
             group='国资股东',
             color={
-                'background': red_color,  # 统一红色
+                'background': '#FFFFFF' #red_color,  # 统一红色
                 'border': '#FFFFFF',      # 边框白色
                 'highlight': {'background': '#FF5252', 'border': '#FFFFFF'}
             },
