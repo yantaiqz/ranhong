@@ -87,222 +87,160 @@ def load_data_from_file(uploaded_file=None):
         st.exception(e)
         return None
 
+import streamlit as st
+import pandas as pd
+import networkx as nx
+from pyvis.network import Network
+import io
+from datetime import datetime
+import os
+
+# ... (load_data_from_file 函数保持不变，此处省略) ...
+
 # -------------------------------------------------------------
-# --- 2. 核心函数：构建网络图（修复节点大小+股东颜色） ---
+# --- 2. 核心函数：构建网络图（已修复节点大小和颜色） ---
 # -------------------------------------------------------------
 
 @st.cache_resource
 def create_graph(data_frame, max_mc, max_shareholder_value):
-    # 定义核心领域颜色映射（鲜明差异化颜色）
+    # 定义核心领域颜色映射
     field_colors = {
-        '新能源产业': '#1E88E5',        # 亮蓝色
-        '电子信息产业': '#9C27B0',      # 深紫色
-        '高端装备制造': '#FF9800',      # 橙色
-        '生物医药健康': '#E91E63',      # 玫红色
-        '消费零售产业': '#4CAF50',      # 绿色
-        '化工新材料': '#795548',        # 棕色
-        '现代服务业': '#00BCD4',        # 青色
-        '现代农业': '#8BC34A',         # 浅绿色
-        '其他': '#9E9E9E'              # 灰色
+        '新能源产业': '#1E88E5',
+        '电子信息产业': '#9C27B0',
+        '高端装备制造': '#FF9800',
+        '生物医药健康': '#E91E63',
+        '消费零售产业': '#4CAF50',
+        '化工新材料': '#795548',
+        '现代服务业': '#00BCD4',
+        '现代农业': '#8BC34A',
+        '其他': '#9E9E9E'
     }
     
     # 初始化Pyvis网络图
     net = Network(
         height='800px', 
         width='100%', 
-        bgcolor='#000000',  # 纯黑色背景
-        font_color='#FFFFFF',  # 全局字体白色
+        bgcolor='#000000',
+        font_color='#FFFFFF',
         directed=True, 
         notebook=True
     )
     
-    # 修复JSON格式的options配置（移除注释、统一双引号、无多余逗号）
+    # Options配置
     options = '''
 {
   "physics": {
     "forceAtlas2Based": {
-      "gravitationalConstant": -300,
-      "centralGravity": 0.05,
-      "springLength": 150,
-      "springConstant": 0.04,
-      "avoidOverlap": 0.8
+      "gravitationalConstant": -100,
+      "centralGravity": 0.01,
+      "springLength": 200,
+      "springConstant": 0.08,
+      "avoidOverlap": 1
     },
-    "minVelocity": 0.5,
-    "solver": "forceAtlas2Based",
-    "timestep": 0.25,
-    "stabilization": {
-      "iterations": 200,
-      "updateInterval": 25
-    }
+    "minVelocity": 0.75,
+    "solver": "forceAtlas2Based"
   },
   "nodes": {
     "font": {
-      "size": 14,
-      "face": "Microsoft YaHei",
+      "size": 16,
       "color": "#FFFFFF",
-      "strokeWidth": 1,
-      "strokeColor": "#000000",
-      "align": "center"
-    },
-    "shape": "ellipse",
-    "margin": 10,
-    "borderWidth": 2,
-    "borderColor": "#FFFFFF"
-  },
-  "edges": {
-    "font": {
-      "size": 12,
-      "face": "Microsoft YaHei",
-      "color": "#FFFF00",
-      "strokeWidth": 0.5,
+      "strokeWidth": 2,
       "strokeColor": "#000000"
     },
-    "color": {
-      "color": "#FFC107",
-      "highlight": "#FFFF00"
-    },
-    "width": 2,
+    "borderWidth": 2,
+    "shadow": true
+  },
+  "edges": {
     "smooth": {
-      "type": "curvedCW",
-      "roundness": 0.1
-    }
-  },
-  "labels": {
-    "enabled": true,
-    "font": {
-      "size": 14,
-      "color": "#FFFFFF"
-    }
-  },
-  "interaction": {
-    "tooltipDelay": 100,
-    "tooltipFontSize": 14,
-    "tooltipColor": {
-      "background": "#222222",
-      "border": "#FFFFFF",
-      "color": "#FFFFFF"
+      "type": "continuous",
+      "roundness": 0.5
     }
   }
 }
 '''
-    # 设置修复后的options
     net.set_options(options)
-
-    # 清空原有节点/边（避免缓存导致的样式残留）
     net.nodes.clear()
     net.edges.clear()
     
-    # 1. 处理企业节点（确保大小差异化）
+    # 1. 处理企业节点
     all_companies = data_frame['公司名称'].unique()
     for company in all_companies:
         company_data = data_frame[data_frame['公司名称'] == company].iloc[0]
         market_cap = company_data['市值 (亿元)']
         core_field = company_data['核心领域'] if company_data['核心领域'] != '' else '其他'
         
-        # 优化节点大小计算：扩大差值范围（30-200），确保大小差异明显
+        # 计算大小 (30-100之间)
         if max_mc > 0:
-            # 对数缩放，避免超大市值节点覆盖其他节点
-            size = 30 + (min(market_cap / max_mc, 1.0) ** 0.5) * 170
+            size = 30 + (min(market_cap / max_mc, 1.0) ** 0.6) * 70
         else:
-            size = 50
-        size = int(size)  # 转为整数，避免Pyvis渲染异常
+            size = 40
         
         node_color = field_colors.get(core_field, field_colors['其他'])
+        tooltip = f"企业：{company}\n领域：{core_field}\n市值：{market_cap:.0f}亿"
         
-        # 提示框内容（简化格式，避免渲染异常）
-        tooltip = f"企业名称：{company}\n核心领域：{core_field}\n市值规模：{market_cap:.0f} 亿元"
-        
-        # 直接添加节点到Pyvis（而非先加nx再转换，避免格式丢失）
         net.add_node(
             company,
             title=tooltip,
             group=core_field,
-            color=node_color,  # 简化颜色配置（直接传背景色，Pyvis兼容更好）
-            borderColor='#FFFFFF',
-            size=size,
+            color=node_color,  # 直接传入颜色字符串
+            size=int(size),
             label=company,
-            shape='box',
-            margin=15,
-            font={
-                'size': 14,
-                'color': '#FFFFFF',
-                'face': 'Microsoft YaHei',
-                'bold': True
-            }
+            shape='dot',       # 【关键修改】改为 dot，size 才会生效
+            borderWidth=1,
+            borderColor='#FFFFFF'
         )
 
-    # 2. 处理国资股东节点（强制红色+大小差异化）
+    # 2. 处理国资股东节点
     all_shareholders = data_frame[data_frame['国资股东名称 (单列)'] != '']['国资股东名称 (单列)'].unique()
     for shareholder in all_shareholders:
         total_value = data_frame[data_frame['国资股东名称 (单列)'] == shareholder]['单一持股价值 (亿元)'].sum()
         
-        # 优化股东节点大小计算（30-200）
+        # 计算大小
         if max_shareholder_value > 0:
-            size = 30 + (min(total_value / max_shareholder_value, 1.0) ** 0.5) * 170
+            size = 30 + (min(total_value / max_shareholder_value, 1.0) ** 0.6) * 70
         else:
-            size = 50
-        size = int(size)
+            size = 40
         
-        # 长名称换行（改用<br>适配HTML渲染）
+        # 长名称换行显示
         display_name = shareholder
-        if len(shareholder) > 12:
-            display_name = shareholder[:8] + '<br>' + shareholder[8:]
+        if len(shareholder) > 10:
+            display_name = shareholder[:6] + '...'
         
-        # 强制红色（#D32F2F 纯红，确保视觉明显）
-        tooltip = f"股东名称：{shareholder}\n股东类型：国资股东\n持股总额：{total_value:.1f} 亿元"
+        tooltip = f"股东：{shareholder}\n持股总额：{total_value:.1f}亿"
         
         net.add_node(
             shareholder,
             title=tooltip,
             group='国资股东',
-            color='#D32F2F',  # 强制红色背景
-            borderColor='#FFFFFF',
-            size=size,
+            color={'background': '#D32F2F', 'border': '#FFEB3B'}, # 【关键修改】强制指定颜色对象
+            size=int(size),
             label=display_name,
-            shape='ellipse',
-            margin=15,
-            font={
-                'size': 12,
-                'color': '#FFFFFF',
-                'face': 'Microsoft YaHei',
-                'bold': True
-            }
+            shape='dot',       # 【关键修改】改为 dot
+            borderWidth=3      # 加粗边框以突出显示
         )
         
-    # 3. 添加持股关系边
+    # 3. 添加连线
     for index, row in data_frame.iterrows():
         company = row['公司名称']
         shareholder = row['国资股东名称 (单列)']
         value = row['单一持股价值 (亿元)']
-        ratio = row['单一持股比']
         
         if shareholder != '' and value > 0:
-            # 边粗细计算
-            weight = 1 + (value / max_shareholder_value) * 9 if max_shareholder_value > 0 else 2
-            weight = int(weight)
-            
-            tooltip = f"持股价值：{value:.1f} 亿元\n持股比例：{ratio:.2%}"
-            label_text = f"{value:.0f}亿" if value >= 1 else f"{value:.1f}亿"
+            width = 1 + (value / max_shareholder_value) * 5 if max_shareholder_value > 0 else 1
             
             net.add_edge(
                 shareholder, 
                 company, 
-                value=weight,
-                title=tooltip,
-                width=weight,
-                label=label_text,
-                font={
-                    'size': 10,
-                    'color': '#FFFF00',
-                    'bold': True
-                }
+                title=f"持股价值: {value}亿",
+                width=width,
+                color='#FFC107', # 线条黄色
+                opacity=0.6
             )
     
-    # 保存图表
     temp_html_file = 'network_chart.html'
     net.save_graph(temp_html_file)
-    
     return temp_html_file
+
 
 # -------------------------------------------------------------
 # --- 3. 数据导出函数 ---
