@@ -227,7 +227,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🕸️ A股民营企业国资持股渗透拓扑图")
+st.title("🕸️ 染红：A股民营企业国资持股渗透拓扑图")
 st.caption("可视化展示：节点大小代表资金/市值规模 | 连线代表持股关系")
 
 # --- 侧边栏 ---
@@ -276,7 +276,7 @@ if df is not None:
             legend_html += f"""
             <div class="legend-item" style="border-right: 1px solid #444; padding-right: 20px; margin-right: 10px;">
                 <div class="legend-dot" style="background-color: {SHAREHOLDER_COLOR}; border: 2px solid {SHAREHOLDER_BORDER}; width: 14px; height: 14px;"></div>
-                <span style="color: #ffcccc; font-weight: bold;">🏛 国资股东 (红色)</span>
+                <span style="color: #ffcccc; font-weight: bold;">🟣 国资股东 (紫色)</span>
                 <span style="font-size: 12px; color: #888; margin-left: 5px;">(大小=持股总额)</span>
             </div>
             """
