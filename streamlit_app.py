@@ -262,8 +262,9 @@ def create_graph(data_frame, max_mc, max_shareholder_value):
             title=tooltip,
             group='国资股东',
             color={
-                'background': '#FFFFFF' #red_color 统一红色
-                'border': '#FFFFFF'      # 边框白色
+                #'background': red_color, # 统一红色
+                'background': '#FFFFFF',
+                'border': '#FFFFFF',      # 边框白色
                 'highlight': {'background': '#FF5252', 'border': '#FFFFFF'}
             },
             size=size,  # 气泡大小=持股价值总额
