@@ -275,7 +275,7 @@ if df is not None:
             # 1. 特殊图例：国资股东
             legend_html += f"""
             <div class="legend-item" style="border-right: 1px solid #444; padding-right: 20px; margin-right: 10px;">
-                <div class="legend-dot" style="background-color: {SHAREHOLDER_COLOR}; border: 2px solid {SHAREHOLDER_BORDER}; width: 14px; height: 14px;"></div>
+                # <div class="legend-dot" style="background-color: {SHAREHOLDER_COLOR}; border: 2px solid {SHAREHOLDER_BORDER}; width: 14px; height: 14px;"></div>
                 <span style="color: #ffcccc; font-weight: bold;">🟣 国资股东 (紫色)</span>
                 <span style="font-size: 12px; color: #888; margin-left: 5px;">(大小=持股总额)</span>
             </div>
