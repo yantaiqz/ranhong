@@ -4,6 +4,7 @@ from pyvis.network import Network
 import io
 from datetime import datetime
 import streamlit.components.v1 as components
+import os  # 新增：导入os模块用于路径处理
 
 # ==============================================================================
 # 0. 全局配置 & 颜色定义
@@ -27,16 +28,27 @@ FIELD_COLORS = {
 SHAREHOLDER_COLOR = '#D32F2F'    # 红色背景
 SHAREHOLDER_BORDER = '#FFEB3B'   # 黄色边框
 
+# 定义默认文件路径（新增核心配置）
+default_file_path = os.path.expanduser("~/国资.xlsx")  # ~代表当前用户家目录
+
 # ==============================================================================
 # 1. 核心功能函数
 # ==============================================================================
 
 def load_data_from_file(uploaded_file=None):
-    """加载并清洗数据"""
+    """加载并清洗数据：优先上传文件，无则读取默认路径文件"""
     try:
+        # 优先使用用户上传的文件
         if uploaded_file is not None:
             df = pd.read_excel(uploaded_file)
+            st.success(f"✅ 成功加载上传文件：{uploaded_file.name}")
+        # 无上传文件时，尝试读取默认路径文件
+        elif os.path.exists(default_file_path):
+            df = pd.read_excel(default_file_path)
+            st.success(f"✅ 成功加载默认文件：{default_file_path}")
+        # 两者都无则返回None
         else:
+            st.warning(f"⚠️ 未检测到上传文件，且默认路径文件不存在：{default_file_path}")
             return None
         
         # 列名映射
@@ -57,11 +69,13 @@ def load_data_from_file(uploaded_file=None):
         
         # 检查必要列
         required_target_cols = ['公司名称', '市值 (亿元)', '核心领域', '国资股东名称 (单列)', '单一持股价值 (亿元)']
-        if not all(col in df.columns for col in required_target_cols):
-            st.error(f"❌ 数据缺少必要列。需要包含: {required_target_cols}")
+        missing_cols = [col for col in required_target_cols if col not in df.columns]
+        if missing_cols:
+            st.error(f"❌ 数据缺少必要列，需要包含：{required_target_cols}")
+            st.info(f"🔍 当前缺失列：{missing_cols}")
             return None
 
-        # 清洗
+        # 数据清洗
         df = df.fillna('')
         df['市值 (亿元)'] = pd.to_numeric(df['市值 (亿元)'], errors='coerce').fillna(0)
         df['单一持股价值 (亿元)'] = pd.to_numeric(df['单一持股价值 (亿元)'], errors='coerce').fillna(0)
@@ -80,6 +94,7 @@ def load_data_from_file(uploaded_file=None):
     
     except Exception as e:
         st.error(f"❌ 数据加载失败: {str(e)}")
+        st.exception(e)  # 打印详细异常信息
         return None
 
 @st.cache_resource
@@ -229,14 +244,17 @@ st.markdown("""
 
 st.title("🖍️染红：A股民营企业国资持股渗透拓扑图")
 st.caption("可视化展示：节点大小代表资金/市值规模 | 连线代表持股关系")
+# 新增：显示默认文件路径提示
+st.info(f"📂 默认数据文件路径：{default_file_path}")
 
 # --- 侧边栏 ---
 with st.sidebar:
     st.header("📂 数据接入")
     uploaded_file = st.file_uploader("上传Excel数据文件", type=["xlsx", "xls"])
     
+    # 优化提示：显示默认文件路径
     if not uploaded_file:
-        st.info("👋 请先上传包含 [企业名称, 市值, 核心领域, 国资股东, 持股价值] 的Excel文件。")
+        st.info(f"👋 可直接上传文件，或将数据文件放在：{default_file_path}")
 
 # --- 主逻辑 ---
 df = load_data_from_file(uploaded_file)
@@ -273,10 +291,9 @@ if df is not None:
             # === 新增位置：在图表下方渲染横向图例 ===
             legend_html = '<div class="legend-box">'
             # 1. 特殊图例：国资股东
-            # <div class="legend-dot" style="background-color: {SHAREHOLDER_COLOR}; border: 2px solid {SHAREHOLDER_BORDER}; width: 14px; height: 14px;"></div>
             legend_html += f"""
             <div class="legend-item" style="border-right: 1px solid #444; padding-right: 20px; margin-right: 10px;">
-                <span style="color: #ffcccc; font-weight: bold;">🟣 国资股东 (紫色)</span>
+                <span style="color: #ffcccc; font-weight: bold;">🔴 国资股东 (红色)</span>
                 <span style="font-size: 12px; color: #888; margin-left: 5px;">(大小=持股总额)</span>
             </div>
             """
@@ -295,6 +312,7 @@ if df is not None:
 
         except Exception as e:
             st.error(f"图表生成错误: {e}")
+            st.exception(e)
     else:
         st.warning("⚠️ 当前筛选条件下无数据，请调整筛选器。")
 
@@ -314,8 +332,9 @@ if df is not None:
             st.dataframe(filtered_df, use_container_width=True)
 
 else:
-    st.markdown("""
+    st.markdown(f"""
     <div style="text-align: center; padding: 50px; color: #666;">
-        <h3>👈 请在左侧上传数据文件开始分析</h3>
+        <h3>👈 请在左侧上传数据文件，或将数据文件放在以下路径：</h3>
+        <p style="font-size: 16px; margin-top: 20px;">{default_file_path}</p>
     </div>
     """, unsafe_allow_html=True)
