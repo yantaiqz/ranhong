@@ -98,11 +98,11 @@ def load_data_from_file(uploaded_file=None):
         # 优先使用用户上传的文件
         if uploaded_file is not None:
             df = pd.read_excel(uploaded_file)
-            st.success(f"✅ 成功加载上传文件：{uploaded_file.name}")
+            #st.success(f"✅ 成功加载上传文件：{uploaded_file.name}")
         # 无上传文件时，尝试读取默认路径文件
         elif os.path.exists(default_file_path):
             df = pd.read_excel(default_file_path)
-            st.success(f"✅ 成功加载默认文件：{default_file_path}")
+            #st.success(f"✅ 成功加载默认文件：{default_file_path}")
         # 两者都无则返回None
         else:
             st.warning(f"⚠️ 未检测到上传文件，且默认路径文件不存在：{default_file_path}")
@@ -302,7 +302,7 @@ st.markdown("""
 st.title("🖍️染红：A股民营企业国资持股渗透拓扑图")
 st.caption("可视化展示：节点大小代表资金/市值规模 | 连线代表持股关系")
 # 新增：显示默认文件路径提示
-st.info(f"📂 默认数据文件路径：{default_file_path}")
+#st.info(f"📂 默认数据文件路径：{default_file_path}")
 
 # --- 侧边栏 ---
 with st.sidebar:
